@@ -52,30 +52,45 @@ plot_ibi_data = [Sep_20_2020_ibi, Sep_22_2020_ibi]
 # ax2.set_xlim(
 #     plot_data.exercise_data.index[1], plot_data.exercise_data.index[-1])
 
-fig_counter = 0
-for curr_data in plot_ibi_data:
-    # Plot of IBI values over time
-    all_ibis = curr_data.ibi_data['ibi_raw']
-    ibi_time_values = np.cumsum(all_ibis.values, axis=0)/1000/60# np.cumsum(np.diff(all_ibis.index.get_level_values(0)))
-#    ibi_time_values = np.concatenate(([pd.Timedelta(0)], ibi_time_values))
-#    ibi_time_values = pd.Series(ibi_time_values)/10**9
+fig1, (ax0, ax1, ax2) = plt.subplots(nrows=3, ncols=1, sharex=True)
+ax0.bar(Sep_20_2020_ibi.ibi_histogram['ibi_raw'].index.values,
+        Sep_20_2020_ibi.ibi_histogram['ibi_raw'].values, width=7.8)
+ax1.bar(Sep_20_2020_ibi.ibi_histogram['ibi_smoothed'].index.values,
+        Sep_20_2020_ibi.ibi_histogram['ibi_smoothed'].values, width=7.8)
+ax2.bar(Sep_20_2020_ibi.ibi_histogram['ibi_filtered'].index.values,
+        Sep_20_2020_ibi.ibi_histogram['ibi_filtered'].values, width=7.8)
 
-    plt.figure(fig_counter)
-    ax3 = plt.subplot()
-    ax3.plot(ibi_time_values[:-1], all_ibis.values[:-1])
-    ax3.plot(ibi_time_values[:-1], curr_data.ibi_data['ibi_filtered'].values[:-1])
-    ax3.set_xlabel('time [min]')
-    ax3.set_ylabel('IBI [ms]')
-    ax3.set_ylim(300, 2000)
-    fig_counter += 1
+ax0.bar(Sep_22_2020_ibi.ibi_histogram['ibi_raw'].index.values,
+        Sep_22_2020_ibi.ibi_histogram['ibi_raw'].values, width=7.8)
+ax1.bar(Sep_22_2020_ibi.ibi_histogram['ibi_smoothed'].index.values,
+        Sep_22_2020_ibi.ibi_histogram['ibi_smoothed'].values, width=7.8)
+ax2.bar(Sep_22_2020_ibi.ibi_histogram['ibi_filtered'].index.values,
+        Sep_22_2020_ibi.ibi_histogram['ibi_filtered'].values, width=7.8)
 
-    # Poincaré-Plot of IBI values
-    plt.figure(fig_counter)
-    ax4 = plt.subplot()
-    ax4.scatter(all_ibis.values[:-2], np.roll(all_ibis.values[:-1], -1)[:-1])
-    ax4.scatter(curr_data.ibi_data['ibi_filtered'].values[:-2], np.roll(curr_data.ibi_data['ibi_filtered'].values[:-1], -1)[:-1])
-    ax4.set_xlabel('IBI(n) [ms]')
-    ax4.set_ylabel('IBI(n+1) [ms]')
-    ax4.set_xlim(300, 2000)
-    ax4.set_ylim(300, 2000)
-    fig_counter += 1
+# fig_counter = 0
+# for curr_data in plot_ibi_data:
+#     # Plot of IBI values over time
+#     all_ibis = curr_data.ibi_data['ibi_raw']
+#     ibi_time_values = np.cumsum(all_ibis.values, axis=0)/1000/60# np.cumsum(np.diff(all_ibis.index.get_level_values(0)))
+# #    ibi_time_values = np.concatenate(([pd.Timedelta(0)], ibi_time_values))
+# #    ibi_time_values = pd.Series(ibi_time_values)/10**9
+
+#     plt.figure(fig_counter)
+#     ax3 = plt.subplot()
+#     ax3.plot(ibi_time_values[:-1], all_ibis.values[:-1])
+#     ax3.plot(ibi_time_values[:-1], curr_data.ibi_data['ibi_filtered'].values[:-1])
+#     ax3.set_xlabel('time [min]')
+#     ax3.set_ylabel('IBI [ms]')
+#     ax3.set_ylim(300, 2000)
+#     fig_counter += 1
+
+#     # Poincaré-Plot of IBI values
+#     plt.figure(fig_counter)
+#     ax4 = plt.subplot()
+#     ax4.scatter(all_ibis.values[:-2], np.roll(all_ibis.values[:-1], -1)[:-1])
+#     ax4.scatter(curr_data.ibi_data['ibi_filtered'].values[:-2], np.roll(curr_data.ibi_data['ibi_filtered'].values[:-1], -1)[:-1])
+#     ax4.set_xlabel('IBI(n) [ms]')
+#     ax4.set_ylabel('IBI(n+1) [ms]')
+#     ax4.set_xlim(300, 2000)
+#     ax4.set_ylim(300, 2000)
+#     fig_counter += 1

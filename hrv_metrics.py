@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 from scipy.ndimage import median_filter
+from scipy.optimize import least_squares, differential_evolution
 
 from pyPreprocessing.smoothing import filtering
 
@@ -56,7 +57,13 @@ class hrv_metrics:
                                                       axis=0)
         self.time_domain_metrics['std'] = np.nanstd(self.ibi_data.values,
                                                     axis=0)
+        self.time_domain_metrics['min'] = np.nanmin(self.ibi_data.values,
+                                                    axis=0)
+        self.time_domain_metrics['max'] = np.nanmax(self.ibi_data.values,
+                                                    axis=0)
 
+        ibi_filtered_nonan = self.ibi_data['ibi_filtered'].values[
+            ~np.isnan(self.ibi_data['ibi_filtered'].values)]
         # p50 is the percentage of successive IBIs that differ by more than
         # 50 ms
         self.time_domain_metrics.at['ibi_raw', 'p50'] = np.sum(
@@ -65,8 +72,6 @@ class hrv_metrics:
         self.time_domain_metrics.at['ibi_smoothed', 'p50'] = np.sum(
             np.diff(self.ibi_data['ibi_smoothed'].values) > 50)/len(
                 self.ibi_data['ibi_smoothed'])
-        ibi_filtered_nonan = self.ibi_data['ibi_filtered'].values[
-            ~np.isnan(self.ibi_data['ibi_filtered'].values)]
         self.time_domain_metrics.at['ibi_filtered', 'p50'] = np.sum(
             np.diff(ibi_filtered_nonan) > 50)/len(
                     self.ibi_data['ibi_filtered'])
@@ -80,6 +85,34 @@ class hrv_metrics:
                 np.sum(ibi_diffs[:, 0:2]**2, axis=0)/ibi_diffs.shape[0])
         self.time_domain_metrics.at['ibi_filtered', 'RMSSD'] = np.sqrt(
             np.sum(ibi_filtered_diffs**2)/len(ibi_filtered_diffs))
+
+        # Geometric measures based on the IBI histogram
+        hist_range = (self.time_domain_metrics.at['ibi_raw', 'min'],
+                      self.time_domain_metrics.at['ibi_raw', 'max'])
+        hist_range_diff = hist_range[1]-hist_range[0]
+        bin_number = int(hist_range_diff/(1000/128))
+        bin_size = hist_range_diff/bin_number
+        self.ibi_histogram = pd.DataFrame([])
+        self.ibi_histogram['ibi_raw'], bin_edges = np.histogram(
+            self.ibi_data['ibi_raw'], bins=bin_number, range=hist_range)
+        self.ibi_histogram['ibi_smoothed'] = np.histogram(
+            self.ibi_data['ibi_smoothed'], bins=bin_number,
+            range=hist_range)[0]
+        self.ibi_histogram['ibi_filtered'] = np.histogram(
+            self.ibi_data['ibi_filtered'], bins=bin_number,
+            range=hist_range)[0]
+        self.ibi_histogram.index = pd.Index((bin_edges + bin_size/2)[:-1],
+                                            name='bin_center [ms]')
+
+        # self.fit_results = least_squares(
+        #     triangle_residuals,
+        #     [hist_range[0], hist_range[1],
+        #      self.ibi_histogram['ibi_raw'].idxmax(),
+        #      self.ibi_histogram['ibi_raw'].max()],
+        #     bounds=([hist_range[0], hist_range[0], hist_range[0], 0],
+        #             [hist_range[1], hist_range[1], hist_range[1], np.inf]),
+        #     args=(self.ibi_histogram['ibi_raw'].values,
+        #           self.ibi_histogram['ibi_raw'].index.values))
 
     def smooth_ibi(self, mode, **kwargs):
         """
@@ -101,7 +134,7 @@ class hrv_metrics:
         """
         smoothing_modes = ['median']
 
-        if mode==smoothing_modes[0]:  # 'median'
+        if mode == smoothing_modes[0]:  # 'median'
             median_window = kwargs.get('median_window', 5)
             self.ibi_data['ibi_smoothed'] = median_filter(
                 self.ibi_data['ibi_smoothed'].values, size=median_window)
@@ -162,3 +195,49 @@ class hrv_metrics:
             raise ValueError(
                 'No valid mode entered. Allowed modes are {}'.format(
                     filter_modes))
+
+def calc_triangle(parameters, ibis):
+    ibi_left = parameters[0]
+    ibi_right = parameters[1]
+    ibi_max = parameters[2]
+    n_max = parameters[3]
+
+    left_mask = np.logical_and(
+        ibis >= min(ibi_left, ibi_max),
+        ibis <= max(ibi_left, ibi_max))
+    right_mask = np.logical_and(
+        ibis > min(ibi_max, ibi_right),
+        ibis <= max(ibi_max, ibi_right))
+
+    left_slope = n_max/(ibi_max - ibi_left)
+    right_slope = -n_max/(ibi_right - ibi_max)
+
+    triangle = np.zeros_like(ibis)
+    triangle[left_mask] = left_slope * (ibis[left_mask] - ibi_left)
+    triangle[right_mask] = right_slope * (ibis[right_mask] - ibi_right)
+
+    return triangle
+
+def triangle_residuals(parameters, abundances, ibis):
+    triangle = calc_triangle(parameters, ibis)
+
+    residuals = np.sqrt(np.sum((abundances - triangle)**2))
+    print(residuals)
+    return residuals
+
+if __name__ == "__main__":
+
+    import matplotlib.pyplot as plt
+
+    y = np.array([0, 0, 0, 1, 2, 1, 0, 0, 0])
+    x = np.arange(9)
+    A = triangle_residuals([2,6,4,2], y, x)
+    results=least_squares(triangle_residuals, [0,6,4,3], args=(y,x),
+                          bounds=([0, 0, 0, 0], [9, 9, 9, 10]))
+    # results = differential_evolution(triangle_residuals, [(0,4), (4,9), (0,9), (0,3)],
+    #                                  args=(y,x))
+    print(results.x)
+    
+    plt.scatter(x,y)
+    plt.plot(x, calc_triangle(results.x, x))
+    plt.show()
