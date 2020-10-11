@@ -67,6 +67,12 @@ ax1.bar(Sep_22_2020_ibi.ibi_histogram['ibi_smoothed'].index.values,
 ax2.bar(Sep_22_2020_ibi.ibi_histogram['ibi_filtered'].index.values,
         Sep_22_2020_ibi.ibi_histogram['ibi_filtered'].values, width=7.8)
 
+fig2, ax2= plt.subplots(1)
+ax2.plot(Sep_20_2020_ibi.ibi_histogram.index,Sep_20_2020_ibi.ibi_histogram['ibi_filtered_triangle'])
+ax2.plot(Sep_20_2020_ibi.ibi_histogram['ibi_filtered'])
+ax2.plot(Sep_22_2020_ibi.ibi_histogram.index,Sep_22_2020_ibi.ibi_histogram['ibi_filtered_triangle'])
+ax2.plot(Sep_22_2020_ibi.ibi_histogram['ibi_filtered'])
+
 # fig_counter = 0
 # for curr_data in plot_ibi_data:
 #     # Plot of IBI values over time

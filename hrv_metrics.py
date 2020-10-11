@@ -4,19 +4,40 @@
 import numpy as np
 import pandas as pd
 from scipy.ndimage import median_filter
-from scipy.optimize import least_squares, differential_evolution
 
 from pyPreprocessing.smoothing import filtering
+from pyRegression.nonlinear_regression import (nonlinear_regression,
+                                               calc_function)
 
 
 class hrv_metrics:
     """
-    Class for metrics and calculations on interbeat interval data. Reference
-    (open access):
+    Class for metrics and calculations on interbeat interval data.
 
+    Reference (open access):
     Shaffer F and Ginsberg JP (2017), An Overview of Heart Rate Variability
     Metrics and Norms. Front. Public Health 5:258.
     doi: 10.3389/fpubh.2017.00258
+
+    The following time domain metrics are calculated:
+        - mean: The average value of all IBIs
+        - std: The standard deviation of all IBIs, also called SDNN or SDRR
+        - min: The minimum value of all IBIs
+        - max: The maximum value of all IBIs
+        - p50: The percentage of adjacent IBIs that differ by more than 50 ms
+        - RMSSD: The root mean square of successive IBI differences
+        - HRV_TI: The HRV triangular index given as the ratio of the total
+                  number of IBIs and the maximum abundance in the histogram.
+                  Result depends on the binning size for histogram calculation.
+        - TINN: The baseline width of the IBI histogram, determined by the
+                width of a triangle function fitted to the histogram.
+
+    The following time domain metrics are still missing:
+        - SDANN: The standard deviation of IBIs from a longer measurement that
+                 is divided into 5 min intervals.
+        - SDNN Index: The standard deviation of SDANN values
+
+    So far no frequency domain metrics are calculated.
     """
 
     def __init__(self, ibi_data):
@@ -27,7 +48,7 @@ class hrv_metrics:
         ----------
         ibi_data : ndarray
             The interbeat intervals in chronological order in a one-dimensional
-            array. Missing values are allowed as np.nan.
+            array given in milliseconds. Missing values are allowed as np.nan.
 
         Returns
         -------
@@ -86,33 +107,46 @@ class hrv_metrics:
         self.time_domain_metrics.at['ibi_filtered', 'RMSSD'] = np.sqrt(
             np.sum(ibi_filtered_diffs**2)/len(ibi_filtered_diffs))
 
-        # Geometric measures based on the IBI histogram
+        # Geometric measures based on the IBI histograms
+        # First generate histograms
+        ibi_keys = ['ibi_raw', 'ibi_smoothed', 'ibi_filtered']
         hist_range = (self.time_domain_metrics.at['ibi_raw', 'min'],
                       self.time_domain_metrics.at['ibi_raw', 'max'])
         hist_range_diff = hist_range[1]-hist_range[0]
         bin_number = int(hist_range_diff/(1000/128))
         bin_size = hist_range_diff/bin_number
         self.ibi_histogram = pd.DataFrame([])
-        self.ibi_histogram['ibi_raw'], bin_edges = np.histogram(
-            self.ibi_data['ibi_raw'], bins=bin_number, range=hist_range)
-        self.ibi_histogram['ibi_smoothed'] = np.histogram(
-            self.ibi_data['ibi_smoothed'], bins=bin_number,
-            range=hist_range)[0]
-        self.ibi_histogram['ibi_filtered'] = np.histogram(
-            self.ibi_data['ibi_filtered'], bins=bin_number,
-            range=hist_range)[0]
-        self.ibi_histogram.index = pd.Index((bin_edges + bin_size/2)[:-1],
+        for curr_key in ibi_keys:
+            self.ibi_histogram[curr_key], bin_edges = np.histogram(
+                self.ibi_data[curr_key], bins=bin_number, range=hist_range)
+        bin_centers = (bin_edges + bin_size/2)[:-1]
+        self.ibi_histogram.index = pd.Index(bin_centers,
                                             name='bin_center [ms]')
-
-        # self.fit_results = least_squares(
-        #     triangle_residuals,
-        #     [hist_range[0], hist_range[1],
-        #      self.ibi_histogram['ibi_raw'].idxmax(),
-        #      self.ibi_histogram['ibi_raw'].max()],
-        #     bounds=([hist_range[0], hist_range[0], hist_range[0], 0],
-        #             [hist_range[1], hist_range[1], hist_range[1], np.inf]),
-        #     args=(self.ibi_histogram['ibi_raw'].values,
-        #           self.ibi_histogram['ibi_raw'].index.values))
+        # Find x and y values of histogram peaks
+        hist_peak_values = self.ibi_histogram.max()
+        hist_peak_ibis = self.ibi_histogram.idxmax()
+        # HRV_TI is the HRV triangular index, the total number of IBI values
+        # divided by the maximum in the histogram
+        self.time_domain_metrics.loc[ibi_keys, 'HRV_TI'] = self.ibi_histogram[
+            ibi_keys].sum()/hist_peak_values
+        # Fit the histograms with a triangle function for TINN calculation
+        self.histogram_triangle_fits = {}
+        for curr_key in ibi_keys:
+            self.histogram_triangle_fits[curr_key] = nonlinear_regression(
+                bin_centers, self.ibi_histogram[curr_key].values, 'triangle',
+                boundaries=[
+                    (bin_centers[0], hist_peak_ibis[curr_key]),
+                    (hist_peak_ibis[curr_key], bin_centers[-1]),
+                    (hist_peak_ibis[curr_key], hist_peak_ibis[curr_key]),
+                    (hist_peak_values[curr_key], hist_peak_values[curr_key])],
+                alg='evo')
+            self.ibi_histogram[curr_key + '_triangle'] = calc_function(
+                bin_centers, self.histogram_triangle_fits[curr_key].x,
+                'triangle')
+            # TINN is the Triangular Interpolation of the NN Interval Histogram
+            self.time_domain_metrics.at[curr_key, 'TINN'] = (
+                self.histogram_triangle_fits[curr_key].x[1] -
+                self.histogram_triangle_fits[curr_key].x[0])
 
     def smooth_ibi(self, mode, **kwargs):
         """
@@ -195,49 +229,3 @@ class hrv_metrics:
             raise ValueError(
                 'No valid mode entered. Allowed modes are {}'.format(
                     filter_modes))
-
-def calc_triangle(parameters, ibis):
-    ibi_left = parameters[0]
-    ibi_right = parameters[1]
-    ibi_max = parameters[2]
-    n_max = parameters[3]
-
-    left_mask = np.logical_and(
-        ibis >= min(ibi_left, ibi_max),
-        ibis <= max(ibi_left, ibi_max))
-    right_mask = np.logical_and(
-        ibis > min(ibi_max, ibi_right),
-        ibis <= max(ibi_max, ibi_right))
-
-    left_slope = n_max/(ibi_max - ibi_left)
-    right_slope = -n_max/(ibi_right - ibi_max)
-
-    triangle = np.zeros_like(ibis)
-    triangle[left_mask] = left_slope * (ibis[left_mask] - ibi_left)
-    triangle[right_mask] = right_slope * (ibis[right_mask] - ibi_right)
-
-    return triangle
-
-def triangle_residuals(parameters, abundances, ibis):
-    triangle = calc_triangle(parameters, ibis)
-
-    residuals = np.sqrt(np.sum((abundances - triangle)**2))
-    print(residuals)
-    return residuals
-
-if __name__ == "__main__":
-
-    import matplotlib.pyplot as plt
-
-    y = np.array([0, 0, 0, 1, 2, 1, 0, 0, 0])
-    x = np.arange(9)
-    A = triangle_residuals([2,6,4,2], y, x)
-    results=least_squares(triangle_residuals, [0,6,4,3], args=(y,x),
-                          bounds=([0, 0, 0, 0], [9, 9, 9, 10]))
-    # results = differential_evolution(triangle_residuals, [(0,4), (4,9), (0,9), (0,3)],
-    #                                  args=(y,x))
-    print(results.x)
-    
-    plt.scatter(x,y)
-    plt.plot(x, calc_triangle(results.x, x))
-    plt.show()
