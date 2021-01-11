@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from suunto2python.suunto_exercise_data import exercise_data
-from hrv_metrics.hrv_metrics import hrv_metrics
+from hrv_metrics import hrv_metrics
 
 
 # Aug_27_2020 = exercise_data(

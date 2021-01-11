@@ -191,7 +191,7 @@ class hrv_metrics:
             The working mode of the filter. Allowed values are 'maximum' (all
             values above a threshold are removed), 'minimum' (all values below
             a threshold are removed, 'lowpass' (data is filtered based on
-            weighted moving average.
+            weighted moving average).
         **kwargs for the different mode values:
             max_thresh : float
                 Is only needed if mode=='maximum'. Default is 60000/25
