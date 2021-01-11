@@ -3,9 +3,9 @@ Calculates metrics from interbeat intervals (IBI) for heart rate variability ana
 
 The data processing uses functions from
 
-https://github.com/Snijderfrey/pyPreprocessing
+https://github.com/AlexanderSouthan/pyPreprocessing
 and
-https://github.com/Snijderfrey/pyRegression
+https://github.com/AlexanderSouthan/pyRegression
 
 so those need to be available.
 Additionally, Pandas, Numpy and Scipy are used.
