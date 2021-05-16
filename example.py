@@ -14,12 +14,14 @@ from hrv_metrics import hrv_metrics
 # Sep_5_2020 = exercise_data(
 #     '/home/almami/Alexander/Suunto-Daten/entry_1353082632_1599316472/samples.json')
 Sep_20_2020 = exercise_data(
-    '/home/almami/Alexander/Suunto-Daten/entry_1993441714_1600629134/samples.json')
+    '/media/ExtHDD/Läufe/Trainingsdaten/Suunto-Daten/entry_1993441714_1600629134.zip',
+    mode='suunto_zip')
 Sep_20_2020_ibi = hrv_metrics(Sep_20_2020.ibi_1d.values)
 # Sep_21_2020_sleep = exercise_data(
 #     '/home/almami/Alexander/Suunto-Daten/entry_1994106508_1600646290/samples.json')
 Sep_22_2020_sleep = exercise_data(
-    '/home/almami/Alexander/Suunto-Daten/entry_-814840220_1600732252/samples.json')
+    '/media/ExtHDD/Läufe/Trainingsdaten/Suunto-Daten/entry_-814840220_1600732252.zip',
+    mode='suunto_zip')
 Sep_22_2020_ibi = hrv_metrics(Sep_22_2020_sleep.ibi_1d.values)
 
 plot_ex_data = [Sep_22_2020_sleep]
